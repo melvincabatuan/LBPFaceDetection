@@ -15,13 +15,16 @@ using namespace cv;
 #define  LOG_TAG    "LBPFaceDetection"
 #define  LOGI(...)  __android_log_print(ANDROID_LOG_INFO,LOG_TAG,__VA_ARGS__)
 #define  LOGE(...)  __android_log_print(ANDROID_LOG_ERROR,LOG_TAG,__VA_ARGS__)
-#define  DEBUG 0
+#define  DEBUG 1
 
 
 /** Global variables */
+char face_cascade_path[100];
+char eyes_cascade_path[100]; 
 CascadeClassifier face_cascade;
 CascadeClassifier eyes_cascade;
 
+double t; // measuring performance
 
 
 /*
@@ -53,30 +56,67 @@ JNIEXPORT void JNICALL Java_io_github_melvincabatuan_lbpfacedetection_MainActivi
       LOGI("Starting native image processing...");
     }
 
-     char face_cascade_path[100];
-     char eyes_cascade_path[100]; 
-     sprintf( face_cascade_path, "%s/%s", getenv("ASSETDIR"), "lbpcascade_frontalface.xml");
-     sprintf( eyes_cascade_path, "%s/%s", getenv("ASSETDIR"), "haarcascade_eye_tree_eyeglasses.xml");
 
-
-      /* Load the cascades */
+    if (face_cascade.empty()){
+       t = (double)getTickCount();
+       sprintf( face_cascade_path, "%s/%s", getenv("ASSETDIR"), "lbpcascade_frontalface.xml");       
+    
+      /* Load the face cascades */
        if( !face_cascade.load(face_cascade_path) ){ 
            LOGE("Error loading face cascade"); 
            abort(); 
        };
-       
+
+       t = 1000*((double)getTickCount() - t)/getTickFrequency();
+       if(DEBUG){
+       LOGI("Loading face cascade took %lf milliseconds.", t);
+     }
+    }
+ 
+
+
+   
+    if (eyes_cascade.empty()){
+       t = (double)getTickCount();
+       sprintf( eyes_cascade_path, "%s/%s", getenv("ASSETDIR"), "haarcascade_eye_tree_eyeglasses.xml");      
+    
+      /* Load the face cascades */
        if( !eyes_cascade.load(eyes_cascade_path) ){ 
            LOGE("Error loading eyes cascade"); 
            abort(); 
        };
 
+       t = 1000*((double)getTickCount() - t)/getTickFrequency();
+       if(DEBUG){
+       LOGI("Loading eyes cascade took %lf milliseconds.", t);
+       }
+    }
+    
+           
  
-        std::vector<Rect> faces;
-        //equalizeHist( srcGray, srcGray);
+     std::vector<Rect> faces;
+
+/*
+     //-- Equalize faces
+     t = (double)getTickCount();
+     equalizeHist( srcGray, srcGray);
+     t = 1000*((double)getTickCount() - t)/getTickFrequency();
+     if(DEBUG){
+       LOGI("equalizeHist() time = %lf milliseconds.", t);
+     }
+*/
 
        //-- Detect faces
+       t = (double)getTickCount();
        face_cascade.detectMultiScale( srcGray, faces, 1.1, 2, 0 , Size(80, 80) );
+       t = 1000*((double)getTickCount() - t)/getTickFrequency();
+       if(DEBUG){
+       LOGI("face_cascade.detectMultiScale() time = %lf milliseconds.", t);
+      }
 
+
+       // Iterate through all faces and detect eyes
+       t = (double)getTickCount();
 
        for( size_t i = 0; i < faces.size(); i++ )
        {
@@ -89,18 +129,22 @@ JNIEXPORT void JNICALL Java_io_github_melvincabatuan_lbpfacedetection_MainActivi
         {
             //-- Draw the face
             Point center( faces[i].x + faces[i].width/2, faces[i].y + faces[i].height/2 );
-            ellipse( srcGray, center, Size( faces[i].width/2, faces[i].height/2 ), 0, 0, 360, Scalar( 255, 0, 0 ), 2, 8, 0 );
+            ellipse( srcGray, center, Size( faces[i].width/2, faces[i].height/2 ), 0, 0, 360, Scalar( 255, 255, 255 ), 2, 8, 0 );
 
             for( size_t j = 0; j < eyes.size(); j++ )
             { //-- Draw the eyes
                 Point eye_center( faces[i].x + eyes[j].x + eyes[j].width/2, faces[i].y + eyes[j].y + eyes[j].height/2 );
                 int radius = cvRound( (eyes[j].width + eyes[j].height)*0.25 );
-                circle( srcGray, eye_center, radius, Scalar( 255, 0, 255 ), 3, 8, 0 );
-            }
-        }
+                circle( srcGray, eye_center, radius, Scalar( 255, 255, 255 ), 3, 8, 0 );
+            }//endfor
+        }//endif
+      }//endfor
+  
+     t = 1000*((double)getTickCount() - t)/getTickFrequency();
+     if(DEBUG){
+         LOGI("Iterate through all faces and detecting eyes took %lf milliseconds.", t);
+     }
 
-    }
- 
    /// Display to Android
      cvtColor(srcGray, mbgra, CV_GRAY2BGRA);
 
